@@ -17,19 +17,43 @@ from openpyxl.styles import (PatternFill, Font, Alignment, Border, Side,
 from openpyxl.utils import get_column_letter
 
 # ─────────────────────────────────────────────────────────────────
-# 0. COULEURS & STYLES
+# 0. COULEURS & STYLES — Palette V2 (inspirée V1, distincts)
 # ─────────────────────────────────────────────────────────────────
-C_TOTAL   = "0D2B45"
-C_GRP1    = "1563A0"
-C_GRP1_FG = "FFFFFF"
-C_GRP2    = "2B8ACB"
-C_GRP2_FG = "FFFFFF"
+# En-tête & titre
+C_TOTAL   = "1B2631"   # Presque noir — en-têtes et titres sections
+C_TOTAL_FG= "FFFFFF"
+# Lignes Total (ligne principale avec réalisé)
+C_TOTAL_LINE = "1ABC9C"  # Teal — ligne Total principale
+C_TOTAL_LINE_FG = "000000"
+C_REEL_FG = "FF0000"     # Rouge vif pour réalisés (comme V1)
+# Marchandises
+C_NT      = "154360"   # Bleu marine — Non transbordé
+C_NT_FG   = "FFFFFF"
+C_TR      = "BA4A00"   # Brun-rouge — Transbordé
+C_TR_FG   = "FFFFFF"
+C_SENS    = "1A5276"   # Bleu foncé — groupes sens/composante
+C_SENS_FG = "FFFFFF"
+C_COMP    = "6C3483"   # Violet — composante (≠ V1 violet A02B93)
+C_COMP_FG = "FFFFFF"
+C_CONT_C  = "117A65"   # Vert — conteneurisation
+C_CONT_FG = "FFFFFF"
+# Escales
+C_ESC     = "0E6655"   # Vert foncé — escales (différent de V1 bleu)
+C_ESC_FG  = "FFFFFF"
+# Conteneurs
+C_CNT_TOT = "1B2631"   # Presque noir
+C_CNT_FG  = "FFFFFF"
+C_CNT_NT  = "154360"   # Bleu marine — NT conteneurs
+C_CNT_TR  = "784212"   # Brun — transbordé conteneurs
+C_CNT_TR_FG="FFFFFF"
+# Détails (lignes blanches)
 C_BLANC   = "FFFFFF"
-C_PREV_FG = "0D2B45"
-C_REEL_FG = "444444"
-C_NT      = "1563A0"   # Non transbordé
-C_TR      = "C87E1A"   # Transbordé
-C_TOT     = "0D2B45"   # Total
+C_PREV_FG = "1B2631"
+# Alias compatibilité
+C_GRP1    = "154360"
+C_GRP1_FG = "FFFFFF"
+C_GRP2    = "BA4A00"
+C_GRP2_FG = "FFFFFF"
 
 def _fill(ws, row, col, color):
     ws.cell(row, col).fill = PatternFill("solid", fgColor=color)
@@ -305,7 +329,7 @@ def _section_march_lt(ws, fc_v2, series_v2, meta, annee_fin,
             ws.merge_cells(f"A{row_start}:A{row-1}")
         c = ws.cell(row_start, 1)
         c.value = section["col_a"]
-        c.fill  = PatternFill("solid", fgColor=C_GRP1)
+        c.fill  = PatternFill("solid", fgColor=C_NT)
         c.font  = Font(color="FFFFFF", bold=True, size=9, name="Calibri")
         c.alignment = Alignment(horizontal="center", vertical="center",
                                  wrap_text=True, textRotation=90)
@@ -335,11 +359,11 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             "titre" : "Trafic global (en Mt)",
             "col_a" : "Trafic global\n(en tonnes)",
             "lignes": [
-                ("Total",         "Trafic global",         C_TOTAL, "FFFFFF", True,
+                ("Total",         "Trafic global",         C_TOTAL_LINE, C_TOTAL_LINE_FG, True,
                  "Total = NT + Transbordé"),
-                ("NT",            "Non transbordé",         C_NT,   C_GRP1_FG, True,
+                ("NT",            "Non transbordé",         C_NT, C_NT_FG, True,
                  f"SARIMA(1,0,0)(0,1,0)12 · WMAPE={wmape:.1f}%"),
-                ("Transbordement","Transbordé",             C_TR,   C_GRP1_FG, True,
+                ("Transbordement","Transbordé",             C_TR, C_TR_FG, True,
                  f"Constante = {meta['transb_moy']:.3f} Mt/an"),
             ]
         },
@@ -347,7 +371,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             "titre" : "Sens du trafic NT (en Mt)",
             "col_a" : "Sens NT\n(tonnes)",
             "lignes": [
-                ("NT",     "Non transbordé", C_NT,    C_GRP1_FG, True,
+                ("NT",     "Non transbordé", C_NT, C_NT_FG, True,
                  f"SARIMA · WMAPE={wmape:.1f}%"),
                 ("Import", "Importations",   C_BLANC, C_PREV_FG, False,
                  hyp_td("Import")),
@@ -359,7 +383,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             "titre" : "Composante NT (en Mt)",
             "col_a" : "Composante NT\n(tonnes)",
             "lignes": [
-                ("NT",               "Non transbordé",   C_NT,   C_GRP1_FG, True,
+                ("NT",               "Non transbordé",   C_NT, C_NT_FG, True,
                  f"SARIMA · WMAPE={wmape:.1f}%"),
                 ("March. generales", "March. générales", C_BLANC,C_PREV_FG, False,
                  hyp_td("March. generales")),
@@ -373,7 +397,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             "titre" : "Conteneurisation NT (en Mt)",
             "col_a" : "Conteneur. NT\n(tonnes)",
             "lignes": [
-                ("NT",              "Non transbordé",  C_NT,   C_GRP1_FG, True,
+                ("NT",              "Non transbordé",  C_NT, C_NT_FG, True,
                  f"SARIMA · WMAPE={wmape:.1f}%"),
                 ("Conteneurise",    "Conteneurisé",    C_BLANC,C_PREV_FG, False,
                  hyp_td("Conteneurise")),
@@ -418,7 +442,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             ws.merge_cells(f"A{row_start}:A{row-1}")
         c = ws.cell(row_start, 1)
         c.value = section["col_a"]
-        c.fill  = PatternFill("solid", fgColor=C_GRP1)
+        c.fill  = PatternFill("solid", fgColor=C_NT)
         c.font  = Font(color="FFFFFF", bold=True, size=9, name="Calibri")
         c.alignment = Alignment(horizontal="center", vertical="center",
                                  wrap_text=True, textRotation=90)
@@ -484,7 +508,7 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
 
     ws.merge_cells(f"A{row}:B{row}")
     _c(ws, row, 1, "Trafic global de navires (en nombre)",
-       bg=C_GRP2, fg=C_GRP2_FG, bold=True, align="left")
+       bg=C_ESC, fg=C_ESC_FG, bold=True, align="left")
     for col in range(3, COL_HYP+1):
         _c(ws, row, col, "", bg=C_GRP2)
     ws.row_dimensions[row].height = 19
@@ -496,7 +520,7 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
         _c(ws, row, 1, "", bg=bg)
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         _c(ws, row, 3, int(v_r), bg=bg,
-           fg="FFFFFF" if cle=="TOTAL" else fg,
+           fg=C_REEL_FG if cle in ("TOTAL",) else ("FFFFFF" if fg not in ("000000","1B2631") else "CC0000"),
            bold=bold, num_fmt="#,##0")
         for i, yr in enumerate(annees_fc):
             _c(ws, row, 4+i, esc_v(cle, yr),
@@ -509,7 +533,7 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
     ws.merge_cells(f"A{row_start}:A{row-1}")
     c = ws.cell(row_start, 1)
     c.value = "Trafic global\nde navires"
-    c.fill  = PatternFill("solid", fgColor=C_GRP2)
+    c.fill  = PatternFill("solid", fgColor=C_ESC)
     c.font  = Font(color="FFFFFF", bold=True, size=9, name="Calibri")
     c.alignment = Alignment(horizontal="center", vertical="center",
                              wrap_text=True, textRotation=90)
@@ -564,7 +588,7 @@ def _section_esc_ct(ws, fc_esc, mdl_esc, annee_fin, annee_fc,
 
     ws.merge_cells(f"A{row}:B{row}")
     _c(ws, row, 1, "Trafic global de navires (en nombre)",
-       bg=C_GRP2, fg=C_GRP2_FG, bold=True, align="left")
+       bg=C_ESC, fg=C_ESC_FG, bold=True, align="left")
     for col in range(3, COL_HYP+1):
         _c(ws, row, col, "", bg=C_GRP2)
     ws.row_dimensions[row].height = 19
@@ -588,7 +612,7 @@ def _section_esc_ct(ws, fc_esc, mdl_esc, annee_fin, annee_fc,
     ws.merge_cells(f"A{row_start}:A{row-1}")
     c = ws.cell(row_start, 1)
     c.value = "Trafic global\nde navires"
-    c.fill  = PatternFill("solid", fgColor=C_GRP2)
+    c.fill  = PatternFill("solid", fgColor=C_ESC)
     c.font  = Font(color="FFFFFF", bold=True, size=9, name="Calibri")
     c.alignment = Alignment(horizontal="center", vertical="center",
                              wrap_text=True, textRotation=90)
@@ -599,9 +623,9 @@ def _section_esc_ct(ws, fc_esc, mdl_esc, annee_fin, annee_fc,
 # 7. SECTION CONTENEURS V2 LT
 # ─────────────────────────────────────────────────────────────────
 LIGNES_CNT = [
-    ("TOTAL",     "Trafic total conteneurs",             C_TOTAL,"FFFFFF",True),
-    ("NT",        "Non transbordé",                      C_NT,   C_GRP1_FG,True),
-    ("Transb",    "Transbordés (total)",                 C_GRP2, C_GRP2_FG,True),
+    ("TOTAL",     "Trafic total conteneurs",             C_TOTAL_LINE, C_TOTAL_LINE_FG, True),
+    ("NT",        "Non transbordé",                      C_CNT_NT, C_NT_FG, True),
+    ("Transb",    "Transbordés (total)",                 C_CNT_TR, C_CNT_TR_FG, True),
     ("TransbTC2", "Transbordés TC2",                     C_BLANC,C_PREV_FG,False),
     ("TransbHab", "Transbordés habituel",                C_BLANC,C_PREV_FG,False),
     ("TC1",       "TERMINAL A CONTENEUR (TC 1)",         C_BLANC,C_PREV_FG,False),
@@ -688,7 +712,7 @@ def _section_cnt_lt_v2(ws, fc_cnt, mdl_cnt, annees_fc,
 
     ws.merge_cells(f"A{row}:B{row}")
     _c(ws, row, 1, "Trafic de conteneurs (en EVP)",
-       bg=C_TR, fg="FFFFFF", bold=True, align="left")
+       bg=C_CNT_TOT, fg=C_CNT_FG, bold=True, align="left")
     for col in range(3, COL_HYP+1):
         _c(ws, row, col, "", bg=C_TR)
     ws.row_dimensions[row].height = 19
@@ -700,7 +724,7 @@ def _section_cnt_lt_v2(ws, fc_cnt, mdl_cnt, annees_fc,
         _c(ws, row, 1, "", bg=bg)
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         _c(ws, row, 3, int(v_r), bg=bg,
-           fg="FFFFFF" if cle=="TOTAL" else fg,
+           fg=C_REEL_FG if cle in ("TOTAL",) else ("FFFFFF" if fg not in ("000000","1B2631") else "CC0000"),
            bold=bold, num_fmt="#,##0")
         for i, yr in enumerate(annees_fc):
             v = _cnt_v2_val(cle, yr, fc_cnt, mdl_cnt, annee_fin, cle_cnt)
@@ -713,7 +737,7 @@ def _section_cnt_lt_v2(ws, fc_cnt, mdl_cnt, annees_fc,
     ws.merge_cells(f"A{row_start}:A{row-1}")
     c = ws.cell(row_start, 1)
     c.value = "Trafic de\nconteneurs\n(EVP)"
-    c.fill  = PatternFill("solid", fgColor=C_TR)
+    c.fill  = PatternFill("solid", fgColor=C_CNT_TOT)
     c.font  = Font(color="FFFFFF", bold=True, size=9, name="Calibri")
     c.alignment = Alignment(horizontal="center", vertical="center",
                              wrap_text=True, textRotation=90)
@@ -773,7 +797,7 @@ def _section_cnt_ct_v2(ws, fc_cnt, mdl_cnt, annee_fin, annee_fc,
 
     ws.merge_cells(f"A{row}:B{row}")
     _c(ws, row, 1, "Trafic de conteneurs (en EVP)",
-       bg=C_TR, fg="FFFFFF", bold=True, align="left")
+       bg=C_CNT_TOT, fg=C_CNT_FG, bold=True, align="left")
     for col in range(3, COL_HYP+1):
         _c(ws, row, col, "", bg=C_TR)
     ws.row_dimensions[row].height = 19
@@ -797,7 +821,7 @@ def _section_cnt_ct_v2(ws, fc_cnt, mdl_cnt, annee_fin, annee_fc,
     ws.merge_cells(f"A{row_start}:A{row-1}")
     c = ws.cell(row_start, 1)
     c.value = "Trafic de\nconteneurs\n(EVP)"
-    c.fill  = PatternFill("solid", fgColor=C_TR)
+    c.fill  = PatternFill("solid", fgColor=C_CNT_TOT)
     c.font  = Font(color="FFFFFF", bold=True, size=9, name="Calibri")
     c.alignment = Alignment(horizontal="center", vertical="center",
                              wrap_text=True, textRotation=90)
