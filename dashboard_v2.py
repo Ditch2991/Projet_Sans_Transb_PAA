@@ -76,11 +76,11 @@ def load_all():
         ser_esc = pickle.load(f)
 
     # Conteneurs (app1)
-    with open("forecasts_conteneurs.pkl","rb") as f:
+    with open("forecasts_conteneurs_v2.pkl","rb") as f:
         cnt_raw = pickle.load(f)
     fc_cnt  = cnt_raw["forecasts"]
     mdl_cnt = cnt_raw["meta"]
-    with open("series_conteneurs.pkl","rb") as f:
+    with open("series_conteneurs_v2.pkl","rb") as f:
         ser_cnt = pickle.load(f)
 
     return forecasts_v2, meta_v2, series_v2, fc_esc, mdl_esc, ser_esc, fc_cnt, mdl_cnt, ser_cnt
@@ -133,6 +133,19 @@ def ann_hist(seg, yr):
     s = series_v2.get(seg)
     if s is None: return 0
     return float(s[s.index.year==yr].sum())
+
+def cnt_total_dyn(yr, cle=None):
+    """Calcule le Total conteneurs dynamiquement via ratio NT × ratio[cle]."""
+    if yr <= mdl_cnt["annee_fin"] if mdl_cnt else 2025:
+        return mdl_cnt["ann_total"][yr] if mdl_cnt else 0
+    fc = fc_cnt.get(yr, {})
+    nt_ann = fc.get("annuel_nt", fc.get("annuel", 0))
+    if nt_ann == 0: return fc.get("annuel", 0)
+    ratio_map = mdl_cnt.get("ratio_tot_nt", {}) if mdl_cnt else {}
+    cle_ref = cle or (mdl_cnt["annee_fin"] if mdl_cnt else 2025)
+    r = ratio_map.get(cle_ref, ratio_map.get(
+        mdl_cnt["annee_fin"] if mdl_cnt else 2025, 1.4398))
+    return int(round(nt_ann * r))
 
 def ann_fc(yr, key):
     return forecasts_v2.get(yr, {}).get(key, 0)
@@ -718,12 +731,13 @@ elif module == "📦 Conteneurs":
         st.markdown(f"## 📦 Conteneurs — KPIs · {yr_last_c}")
         c1,c2,c3,c4 = st.columns(4)
         kpi(c1,f"Total {yr_last_c}",f"{ann_hist_c.get(yr_last_c,0):,} EVP",
-            f"Holt amorti · err={err_tot:.1f}%")
+            f"NT (Holt amorti WMAPE={wmape_nt_c:.1f}%) × ratio")
         kpi(c2,f"Non transb. {yr_last_c}",
             f"{ser_cnt.get('Non transb.',pd.Series()).reindex([pd.Timestamp(yr_last_c,12,1)]).sum():,.0f} EVP",
             f"WMAPE={wmape_nt_c:.1f}%")
         kpi(c3,f"Prévu {ANNEE_MIN_FC}",
-            f"{fc_cnt.get(ANNEE_MIN_FC,{}).get('annuel',0):,} EVP","Holt amorti")
+            f"{cnt_total_dyn(ANNEE_MIN_FC, cle_cnt):,} EVP",
+            f"NT × ratio {cle_cnt}")
         kpi(c4,"Transb. TC2","Constant",
             f"{mdl_cnt.get('transb_tc2_2025',0):,} EVP/an")
 
@@ -762,9 +776,15 @@ elif module == "📦 Conteneurs":
         st.markdown(f"## 📦 Conteneurs — Court terme {ANNEE_MIN_FC}")
         fc_c = fc_cnt.get(ANNEE_MIN_FC, {})
         mens_c = fc_c.get("mensuel", np.zeros(12))
+        # Recalibrer le mensuel selon le ratio de la clé choisie
+        tot_dyn = cnt_total_dyn(ANNEE_MIN_FC, cle_cnt)
+        nt_ann_c = fc_c.get("annuel_nt", int(sum(mens_c)))
+        if nt_ann_c > 0 and int(sum(mens_c)) > 0:
+            factor = tot_dyn / int(sum(mens_c))
+            mens_c = np.round(np.array(mens_c, dtype=float) * factor).astype(int)
         c1,c2 = st.columns(2)
         kpi(c1,f"Total prévu {ANNEE_MIN_FC}",f"{int(sum(mens_c)):,} EVP",
-            f"err={err_tot:.1f}%")
+            f"NT × ratio {cle_cnt}")
         kpi(c2,"Transb. TC2",f"{mdl_cnt.get('transb_tc2_2025',0):,} EVP",
             "Constant 2025")
         fig = go.Figure()
@@ -776,7 +796,7 @@ elif module == "📦 Conteneurs":
 
     elif page == "Conteneurs — Prévisions LT":
         st.markdown(f"## 📦 Conteneurs — Long terme {ANNEE_MIN_FC}–{annee_cible}")
-        ann_fc_c = [fc_cnt.get(yr,{}).get("annuel",0) for yr in yrs_f_c]
+        ann_fc_c = [cnt_total_dyn(yr, cle_cnt) for yr in yrs_f_c]
         fig = go.Figure()
         fig.add_scatter(x=yrs_h_c, y=[ann_hist_c.get(yr,0) for yr in yrs_h_c],
                         name="Réalisé", line=dict(color="#C87E1A",width=2.5),
@@ -785,9 +805,12 @@ elif module == "📦 Conteneurs":
                         line=dict(color="#C87E1A",width=2,dash="dash"),
                         mode="lines+markers")
         plo(fig,"Total conteneurs (EVP)")
-        rows = [{"Année":yr,"EVP prévus":fc_cnt.get(yr,{}).get("annuel",0),
-                 "NT":fc_cnt.get(yr,{}).get("annuel_nt",0),
-                 "Transb. TC2":fc_cnt.get(yr,{}).get("transb_tc2_ann",0)}
+        rows = [{"Année":yr,
+                 "NT (EVP)": fc_cnt.get(yr,{}).get("annuel_nt",0),
+                 "Total (EVP)": cnt_total_dyn(yr, cle_cnt),
+                 "Transb. total": cnt_total_dyn(yr, cle_cnt) - fc_cnt.get(yr,{}).get("annuel_nt",0),
+                 "Transb. TC2": fc_cnt.get(yr,{}).get("transb_tc2_ann",0),
+                 "∆ vs 2025": f"{(cnt_total_dyn(yr,cle_cnt)/ann_hist_c.get(yr_last_c,1)-1)*100:+.1f}%"}
                 for yr in yrs_f_c]
         st.dataframe(pd.DataFrame(rows).set_index("Année"),
                      use_container_width=True)
@@ -797,7 +820,7 @@ elif module == "📦 Conteneurs":
         col_y2 = st.selectbox("Année", yrs_f_c, key="yr_cnt_seg_v2")
         fc_c = fc_cnt.get(col_y2, {})
         pt_c = parts_term.get(cle_cnt, parts_term.get(yr_last_c, {}))
-        ann_c = fc_c.get("annuel", 0)
+        ann_c = cnt_total_dyn(col_y2, cle_cnt)
         rows = []
         for term in sorted(pt_c.keys(), key=lambda x:-pt_c[x]):
             p = pt_c[term]
