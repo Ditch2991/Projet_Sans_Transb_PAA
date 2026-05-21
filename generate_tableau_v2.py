@@ -449,11 +449,9 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
     def esc_v(cle, yr):
         if yr == annee_fin:
             if cle == "TOTAL": return ann_hist.get(yr, 0)
-            if cle == "PORT_COM": return ann_hist.get(yr, 0)  # = total réalisé
             return int(fc_esc[("historique", yr)]["segments"]
                        .get(cle, np.zeros(12)).sum())
         if cle == "TOTAL": return fc_esc[yr]["annuel"]
-        if cle == "PORT_COM": return fc_esc[yr]["annuel"]
         total_yr = fc_esc[yr]["annuel"]
         p = parts_yr.get(_cle_r, parts_yr[yr_last]).get(cle, 0)
         return int(round(total_yr * p / 100))
@@ -461,8 +459,7 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
     LIGNES = [
         ("TOTAL",        "Nombre total d'escales",           C_TOTAL, "FFFFFF", True,
          f"Holt amorti (double lissage) · WMAPE={wmape:.1f}%"),
-        ("PORT_COM",     "Port de Commerce",                  C_GRP2,  C_GRP2_FG, True,
-         "Somme des composantes"),
+
         ("TC1",          "TERMINAL A CONTENEUR (TC 1)",       C_BLANC, C_PREV_FG, True,
          _hyp("TC1")),
         ("TC2",          "TERMINAL A CONTENEUR (TC 2)",       C_BLANC, C_PREV_FG, True,
@@ -499,7 +496,7 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
         _c(ws, row, 1, "", bg=bg)
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         _c(ws, row, 3, int(v_r), bg=bg,
-           fg="CC0000" if cle=="TOTAL" else fg,
+           fg="FFFFFF" if cle=="TOTAL" else fg,
            bold=bold, num_fmt="#,##0")
         for i, yr in enumerate(annees_fc):
             _c(ws, row, 4+i, esc_v(cle, yr),
@@ -533,7 +530,6 @@ def _section_esc_ct(ws, fc_esc, mdl_esc, annee_fin, annee_fc,
 
     def em(cle):
         total_m = np.array(fc_esc[annee_fc]["mensuel"], dtype=float)
-        if cle in ("TOTAL","PORT_COM"): return total_m
         p = parts_yr.get(_cle_r, parts_yr[yr_last]).get(cle, 0)
         r = np.round(total_m * p / 100).astype(int).astype(float)
         diff = total_m.sum() * p / 100 - r.sum()
@@ -543,8 +539,7 @@ def _section_esc_ct(ws, fc_esc, mdl_esc, annee_fin, annee_fc,
     LIGNES = [
         ("TOTAL",        "Nombre total d'escales",           C_TOTAL, "FFFFFF", True,
          f"Holt amorti · WMAPE={wmape:.1f}%"),
-        ("PORT_COM",     "Port de Commerce",                  C_GRP2,  C_GRP2_FG, True,
-         "Somme des composantes"),
+
         ("TC1",          "TERMINAL A CONTENEUR (TC 1)",       C_BLANC, C_PREV_FG, True,
          _hyp("TC1")),
         ("TC2",          "TERMINAL A CONTENEUR (TC 2)",       C_BLANC, C_PREV_FG, True,
@@ -618,60 +613,51 @@ LIGNES_CNT = [
 
 def _cnt_v2_val(cle, yr, fc_cnt, mdl_cnt, annee_fin, cle_cnt):
     """Valeur annuelle conteneurs V2."""
-    ann_hist = mdl_cnt.get("ann_total", {})
-    # Historique dans fc_cnt[("historique", yr)]
-    fc_hist  = fc_cnt.get(("historique", yr), {})
+    import numpy as np
+
+    # ── Réalisé (historique) ──────────────────────────────────────
     if yr == annee_fin:
-        tot = ann_hist.get(yr, 0)
-        if tot == 0: tot = fc_hist.get("annuel", 0)
-        # NT depuis y_nt (dernier point)
-        y_nt_arr = mdl_cnt.get("y_nt", [])
-        nt = int(y_nt_arr[-1]) if len(y_nt_arr) > 0 else 0
-        tc2 = mdl_cnt.get("transb_tc2_2025", 0)
-        hab = mdl_cnt.get("transb_hab_2025", tot - nt - tc2)
-        parts_t = mdl_cnt.get("parts_term",{}).get(cle_cnt,
-                  mdl_cnt.get("parts_term",{}).get(annee_fin,{}))
-        segs_t  = fc_hist.get("segments_term", {})
-        segs_d  = fc_hist.get("segments_dest", {})
+        fh = fc_cnt.get(("historique", yr), {})
+        segs_t = fh.get("segments_term", {})
+        segs_d = fh.get("segments_dest", {})
+        tot = fh.get("annuel", 0)
         map_t = {"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier",
                  "Roulier":"Roulier","Autres":"Autres zones"}
-
         if cle == "TOTAL":     return tot
         if cle == "NT":
-            return nt if nt > 0 else int(round(
-                tot * mdl_cnt.get("parts_dest",{})
-                .get(cle_cnt, mdl_cnt.get("parts_dest",{}).get(annee_fin,{}))
-                .get("Non transb.", 69.46) / 100))
-        nt_real = nt if nt > 0 else int(round(
-            tot * mdl_cnt.get("parts_dest",{})
-            .get(cle_cnt, mdl_cnt.get("parts_dest",{}).get(annee_fin,{}))
-            .get("Non transb.", 69.46) / 100))
-        if cle == "Transb":    return tot - nt_real
-        if cle == "TransbTC2": return tc2
-        if cle == "TransbHab": return mdl_cnt.get("transb_hab_2025", tot - nt_real - tc2)
-        # Terminaux : lire depuis segments_term si dispo, sinon top-down
+            return int(np.array(segs_d.get("Non transb.", [0])).sum()
+                       if "Non transb." in segs_d else int(mdl_cnt["y_nt"][-1]))
+        if cle == "Transb":
+            return int(np.array(segs_d.get("Transbordé", [0])).sum()
+                       if "Transbordé" in segs_d else 0)
+        if cle == "TransbTC2":
+            return int(np.array(segs_d.get("Transb. TC2", [0])).sum()
+                       if "Transb. TC2" in segs_d else mdl_cnt["transb_tc2_2025"])
+        if cle == "TransbHab":
+            return int(np.array(segs_d.get("Transb. habituel", [0])).sum()
+                       if "Transb. habituel" in segs_d else 0)
         t_key = map_t.get(cle, cle)
         if t_key in segs_t:
-            return int(segs_t[t_key].sum() if hasattr(segs_t[t_key],'sum')
-                       else sum(segs_t[t_key]))
-        return int(round(tot * parts_t.get(t_key, 0) / 100))
+            return int(np.array(segs_t[t_key]).sum())
+        return 0
 
+    # ── Prévisions ───────────────────────────────────────────────
     fc = fc_cnt.get(yr, {})
-    tot = _cnt_total_dyn(fc_cnt, mdl_cnt, yr, cle_cnt, annee_fin)
-    nt_ann = fc.get("annuel_nt", 0)
+    tot     = _cnt_total_dyn(fc_cnt, mdl_cnt, yr, cle_cnt, annee_fin)
+    nt_ann  = fc.get("annuel_nt", 0)
     tc2_ann = fc.get("transb_tc2_ann", mdl_cnt.get("transb_tc2_2025", 0))
-    hab_ann = fc.get("transb_hab_ann", tot - nt_ann - tc2_ann)
     parts_t = mdl_cnt.get("parts_term", {}).get(cle_cnt,
               mdl_cnt.get("parts_term", {}).get(annee_fin, {}))
+    map_t = {"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier",
+             "Roulier":"Roulier","Autres":"Autres zones"}
 
     if cle == "TOTAL":     return tot
     if cle == "NT":        return nt_ann
     if cle == "Transb":    return tot - nt_ann
     if cle == "TransbTC2": return tc2_ann
     if cle == "TransbHab": return tot - nt_ann - tc2_ann
-    map_t = {"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier",
-             "Roulier":"Roulier","Autres":"Autres zones"}
-    return int(round(tot * parts_t.get(map_t.get(cle,cle), 0) / 100))
+    return int(round(tot * parts_t.get(map_t.get(cle, cle), 0) / 100))
+
 
 def _section_cnt_lt_v2(ws, fc_cnt, mdl_cnt, annees_fc,
                        annee_fin, row, COL_HYP, cle_cnt):
@@ -714,7 +700,7 @@ def _section_cnt_lt_v2(ws, fc_cnt, mdl_cnt, annees_fc,
         _c(ws, row, 1, "", bg=bg)
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         _c(ws, row, 3, int(v_r), bg=bg,
-           fg="CC0000" if cle=="TOTAL" else fg,
+           fg="FFFFFF" if cle=="TOTAL" else fg,
            bold=bold, num_fmt="#,##0")
         for i, yr in enumerate(annees_fc):
             v = _cnt_v2_val(cle, yr, fc_cnt, mdl_cnt, annee_fin, cle_cnt)
@@ -757,12 +743,10 @@ def _section_cnt_ct_v2(ws, fc_cnt, mdl_cnt, annee_fin, annee_fc,
         if cle == "NT":     return np.array(fc.get("mensuel",np.zeros(12)),dtype=float) * (nt_ann/mens_tot.sum() if mens_tot.sum()>0 else 1)
         tc2_m = np.round(tc2_val/12 * np.ones(12)).astype(int).astype(float)
         if cle == "TransbTC2": return tc2_m
-        # NT mensuel : recalibré
-        nt_m_base = np.array(fc.get("mensuel", np.zeros(12)), dtype=float)
-        if nt_ann > 0 and nt_m_base.sum() > 0:
-            nt_m_cal = np.round(nt_m_base * (nt_ann / nt_m_base.sum())).astype(int).astype(float)
-        else:
-            nt_m_cal = nt_m_base
+        # NT mensuel recalibré selon ratio
+        total_base = fc.get("mensuel", np.zeros(12))
+        tot_sum    = mens_tot.sum()
+        nt_m_cal   = np.round(mens_tot * (nt_ann / tot_sum)).astype(int).astype(float)                      if tot_sum > 0 and nt_ann > 0 else np.zeros(12)
         if cle == "Transb":    return mens_tot - nt_m_cal
         if cle == "TransbHab": return mens_tot - nt_m_cal - tc2_m
         map_t = {"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier",

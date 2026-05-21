@@ -282,12 +282,6 @@ with st.sidebar:
     horizon = st.slider("Horizon (ans)", 1, 15, 5, key="horizon_v2")
     annee_cible = ANNEE_MIN_FC + horizon - 1
 
-    # ── ADMIN ───────────────────────────────────────────────────
-    st.markdown("---")
-    if st.button("⚙️ Administration", use_container_width=True,
-                 type="secondary", key="btn_admin_v2"):
-        st.session_state["show_admin_v2"] = not st.session_state.get("show_admin_v2", False)
-
     st.markdown("---")
     st.markdown("**Exports Excel**")
     try:
@@ -325,6 +319,12 @@ with st.sidebar:
             use_container_width=True)
     except Exception as ex:
         st.warning(f"Exports indisponibles : {ex}")
+
+    # ── ADMIN (sous les exports) ──────────────────────────────
+    st.markdown("---")
+    if st.button("⚙️ Administration", use_container_width=True,
+                 type="secondary", key="btn_admin_v2"):
+        st.session_state["show_admin_v2"] = not st.session_state.get("show_admin_v2", False)
 
 # ─────────────────────────────────────────────────────────────────
 # 6. PAGES MARCHANDISES V2
