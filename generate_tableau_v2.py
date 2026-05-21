@@ -202,7 +202,7 @@ def _section_march_lt(ws, fc_v2, series_v2, meta, annee_fin,
     # Définition des lignes par sous-section
     SECTIONS = [
         {
-            "titre" : "Trafic global (en tonnes)",
+            "titre" : "Trafic global (en Mt)",
             "col_a" : "Trafic global\n(en tonnes)",
             "lignes": [
                 ("Total", "Trafic global",
@@ -217,7 +217,7 @@ def _section_march_lt(ws, fc_v2, series_v2, meta, annee_fin,
             ]
         },
         {
-            "titre" : "Sens du trafic (Non transbordé)",
+            "titre" : "Sens du trafic NT (en Mt)",
             "col_a" : "Sens trafic NT\n(en tonnes)",
             "lignes": [
                 ("NT", "Non transbordé",
@@ -230,7 +230,7 @@ def _section_march_lt(ws, fc_v2, series_v2, meta, annee_fin,
             ]
         },
         {
-            "titre" : "Composante (Non transbordé)",
+            "titre" : "Composante NT (en Mt)",
             "col_a" : "Composante NT\n(en tonnes)",
             "lignes": [
                 ("NT", "Non transbordé",
@@ -248,7 +248,7 @@ def _section_march_lt(ws, fc_v2, series_v2, meta, annee_fin,
             ]
         },
         {
-            "titre" : "Conteneurisation (Non transbordé)",
+            "titre" : "Conteneurisation NT (en Mt)",
             "col_a" : "Conteneurisation NT\n(en tonnes)",
             "lignes": [
                 ("NT", "Non transbordé",
@@ -332,7 +332,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
 
     SECTIONS = [
         {
-            "titre" : "Trafic global (en tonnes)",
+            "titre" : "Trafic global (en Mt)",
             "col_a" : "Trafic global\n(en tonnes)",
             "lignes": [
                 ("Total",         "Trafic global",         C_TOTAL, "FFFFFF", True,
@@ -344,7 +344,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             ]
         },
         {
-            "titre" : "Sens du trafic (Non transbordé)",
+            "titre" : "Sens du trafic NT (en Mt)",
             "col_a" : "Sens NT\n(tonnes)",
             "lignes": [
                 ("NT",     "Non transbordé", C_NT,    C_GRP1_FG, True,
@@ -356,7 +356,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             ]
         },
         {
-            "titre" : "Composante (Non transbordé)",
+            "titre" : "Composante NT (en Mt)",
             "col_a" : "Composante NT\n(tonnes)",
             "lignes": [
                 ("NT",               "Non transbordé",   C_NT,   C_GRP1_FG, True,
@@ -370,7 +370,7 @@ def _section_march_ct(ws, fc_v2, series_v2, meta, annee_fin,
             ]
         },
         {
-            "titre" : "Conteneurisation (Non transbordé)",
+            "titre" : "Conteneurisation NT (en Mt)",
             "col_a" : "Conteneur. NT\n(tonnes)",
             "lignes": [
                 ("NT",              "Non transbordé",  C_NT,   C_GRP1_FG, True,
@@ -448,8 +448,9 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
 
     def esc_v(cle, yr):
         if yr == annee_fin:
-            return ann_hist.get(yr, 0) if cle == "TOTAL" else \
-                   int(fc_esc[("historique", yr)]["segments"]
+            if cle == "TOTAL": return ann_hist.get(yr, 0)
+            if cle == "PORT_COM": return ann_hist.get(yr, 0)  # = total réalisé
+            return int(fc_esc[("historique", yr)]["segments"]
                        .get(cle, np.zeros(12)).sum())
         if cle == "TOTAL": return fc_esc[yr]["annuel"]
         if cle == "PORT_COM": return fc_esc[yr]["annuel"]
@@ -498,7 +499,7 @@ def _section_esc_lt(ws, fc_esc, mdl_esc, annee_fin,
         _c(ws, row, 1, "", bg=bg)
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         _c(ws, row, 3, int(v_r), bg=bg,
-           fg=C_REEL_FG if cle=="TOTAL" else fg,
+           fg="CC0000" if cle=="TOTAL" else fg,
            bold=bold, num_fmt="#,##0")
         for i, yr in enumerate(annees_fc):
             _c(ws, row, 4+i, esc_v(cle, yr),
@@ -618,23 +619,42 @@ LIGNES_CNT = [
 def _cnt_v2_val(cle, yr, fc_cnt, mdl_cnt, annee_fin, cle_cnt):
     """Valeur annuelle conteneurs V2."""
     ann_hist = mdl_cnt.get("ann_total", {})
+    # Historique dans fc_cnt[("historique", yr)]
+    fc_hist  = fc_cnt.get(("historique", yr), {})
     if yr == annee_fin:
-        if cle == "TOTAL": return ann_hist.get(yr, 0)
+        tot = ann_hist.get(yr, 0)
+        if tot == 0: tot = fc_hist.get("annuel", 0)
+        # NT depuis y_nt (dernier point)
+        y_nt_arr = mdl_cnt.get("y_nt", [])
+        nt = int(y_nt_arr[-1]) if len(y_nt_arr) > 0 else 0
+        tc2 = mdl_cnt.get("transb_tc2_2025", 0)
+        hab = mdl_cnt.get("transb_hab_2025", tot - nt - tc2)
+        parts_t = mdl_cnt.get("parts_term",{}).get(cle_cnt,
+                  mdl_cnt.get("parts_term",{}).get(annee_fin,{}))
+        segs_t  = fc_hist.get("segments_term", {})
+        segs_d  = fc_hist.get("segments_dest", {})
+        map_t = {"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier",
+                 "Roulier":"Roulier","Autres":"Autres zones"}
+
+        if cle == "TOTAL":     return tot
         if cle == "NT":
-            s = mdl_cnt.get("ann_nt", {})
-            return s.get(yr, 0) if isinstance(s, dict) else 0
-        if cle in ("Transb","TransbTC2","TransbHab","TC1","TC2","Fruitier","Roulier","Autres"):
-            # Lire depuis series_conteneurs_v2 ou déduire
-            tot = ann_hist.get(yr, 0)
-            nt  = mdl_cnt.get("ann_nt", {}).get(yr, 0) if isinstance(mdl_cnt.get("ann_nt",{}), dict) else 0
-            tc2 = mdl_cnt.get("transb_tc2_2025", 0)
-            parts_t = mdl_cnt.get("parts_term", {}).get(cle_cnt, mdl_cnt.get("parts_term",{}).get(annee_fin,{}))
-            parts_d = mdl_cnt.get("parts_dest", {}).get(cle_cnt, mdl_cnt.get("parts_dest",{}).get(annee_fin,{}))
-            if cle == "Transb":    return tot - nt
-            if cle == "TransbTC2": return int(fc_cnt.get(yr+1,{}).get("transb_tc2_ann", tc2)) if yr < annee_fin else tc2
-            if cle == "TransbHab": return (tot-nt) - tc2
-            return int(round(tot * parts_t.get({"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier","Roulier":"Roulier","Autres":"Autres zones"}.get(cle,cle),0)/100))
-        return 0
+            return nt if nt > 0 else int(round(
+                tot * mdl_cnt.get("parts_dest",{})
+                .get(cle_cnt, mdl_cnt.get("parts_dest",{}).get(annee_fin,{}))
+                .get("Non transb.", 69.46) / 100))
+        nt_real = nt if nt > 0 else int(round(
+            tot * mdl_cnt.get("parts_dest",{})
+            .get(cle_cnt, mdl_cnt.get("parts_dest",{}).get(annee_fin,{}))
+            .get("Non transb.", 69.46) / 100))
+        if cle == "Transb":    return tot - nt_real
+        if cle == "TransbTC2": return tc2
+        if cle == "TransbHab": return mdl_cnt.get("transb_hab_2025", tot - nt_real - tc2)
+        # Terminaux : lire depuis segments_term si dispo, sinon top-down
+        t_key = map_t.get(cle, cle)
+        if t_key in segs_t:
+            return int(segs_t[t_key].sum() if hasattr(segs_t[t_key],'sum')
+                       else sum(segs_t[t_key]))
+        return int(round(tot * parts_t.get(t_key, 0) / 100))
 
     fc = fc_cnt.get(yr, {})
     tot = _cnt_total_dyn(fc_cnt, mdl_cnt, yr, cle_cnt, annee_fin)
@@ -694,7 +714,7 @@ def _section_cnt_lt_v2(ws, fc_cnt, mdl_cnt, annees_fc,
         _c(ws, row, 1, "", bg=bg)
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         _c(ws, row, 3, int(v_r), bg=bg,
-           fg=C_REEL_FG if cle=="TOTAL" else fg,
+           fg="CC0000" if cle=="TOTAL" else fg,
            bold=bold, num_fmt="#,##0")
         for i, yr in enumerate(annees_fc):
             v = _cnt_v2_val(cle, yr, fc_cnt, mdl_cnt, annee_fin, cle_cnt)
@@ -737,8 +757,14 @@ def _section_cnt_ct_v2(ws, fc_cnt, mdl_cnt, annee_fin, annee_fc,
         if cle == "NT":     return np.array(fc.get("mensuel",np.zeros(12)),dtype=float) * (nt_ann/mens_tot.sum() if mens_tot.sum()>0 else 1)
         tc2_m = np.round(tc2_val/12 * np.ones(12)).astype(int).astype(float)
         if cle == "TransbTC2": return tc2_m
-        if cle == "Transb":    return mens_tot - np.array(fc.get("mensuel",np.zeros(12)),dtype=float)
-        if cle == "TransbHab": return mens_tot - np.array(fc.get("mensuel",np.zeros(12)),dtype=float) - tc2_m
+        # NT mensuel : recalibré
+        nt_m_base = np.array(fc.get("mensuel", np.zeros(12)), dtype=float)
+        if nt_ann > 0 and nt_m_base.sum() > 0:
+            nt_m_cal = np.round(nt_m_base * (nt_ann / nt_m_base.sum())).astype(int).astype(float)
+        else:
+            nt_m_cal = nt_m_base
+        if cle == "Transb":    return mens_tot - nt_m_cal
+        if cle == "TransbHab": return mens_tot - nt_m_cal - tc2_m
         map_t = {"TC1":"TC1","TC2":"TC2","Fruitier":"Fruitier",
                  "Roulier":"Roulier","Autres":"Autres zones"}
         segs = fc.get("segments_term", {})
