@@ -282,6 +282,12 @@ with st.sidebar:
     horizon = st.slider("Horizon (ans)", 1, 15, 5, key="horizon_v2")
     annee_cible = ANNEE_MIN_FC + horizon - 1
 
+    # ── ADMIN ───────────────────────────────────────────────────
+    st.markdown("---")
+    if st.button("⚙️ Administration", use_container_width=True,
+                 type="secondary", key="btn_admin_v2"):
+        st.session_state["show_admin_v2"] = not st.session_state.get("show_admin_v2", False)
+
     st.markdown("---")
     st.markdown("**Exports Excel**")
     try:
@@ -836,3 +842,288 @@ elif module == "📦 Conteneurs":
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
         if cle_cnt != yr_last_c:
             st.caption(f"⚠️ Clé {cle_cnt} utilisée au lieu de {yr_last_c}")
+
+
+# ─────────────────────────────────────────────────────────────────
+# PAGE ADMINISTRATION V2
+# ─────────────────────────────────────────────────────────────────
+if st.session_state.get("show_admin_v2", False):
+
+    st.markdown("---")
+    st.markdown("## ⚙️ Administration — Mise à jour des données (V2)")
+
+    # ── AUTHENTIFICATION ─────────────────────────────────────────
+    if not st.session_state.get("admin_auth_v2", False):
+        st.markdown("### 🔐 Accès restreint")
+        pwd = st.text_input("Mot de passe", type="password", key="admin_pwd_v2")
+        if st.button("Se connecter", key="btn_login_v2"):
+            try:
+                correct = st.secrets["ADMIN_PASSWORD"]
+            except Exception:
+                correct = "paa2026"
+            if pwd == correct:
+                st.session_state["admin_auth_v2"] = True
+                st.rerun()
+            else:
+                st.error("Mot de passe incorrect.")
+        st.stop()
+
+    # ── INTERFACE ADMIN ──────────────────────────────────────────
+    col_logout, _ = st.columns([1, 4])
+    with col_logout:
+        if st.button("🚪 Déconnexion", key="btn_logout_v2"):
+            st.session_state["admin_auth_v2"] = False
+            st.session_state["show_admin_v2"] = False
+            st.rerun()
+
+    st.success("✅ Connecté — accès administrateur")
+    st.markdown("---")
+
+    # ── UPLOAD ───────────────────────────────────────────────────
+    st.markdown("### 📤 Charger les nouvelles données")
+    st.caption("Chargez uniquement les fichiers disponibles. Les autres restent inchangés.")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("**📦 Marchandises**")
+        f_march = st.file_uploader("Fichier Excel marchandises",
+                                   type=["xlsx"], key="up_march_v2",
+                                   label_visibility="collapsed")
+        if f_march: st.success(f"✓ {f_march.name}")
+    with col2:
+        st.markdown("**🚢 Escales**")
+        f_esc = st.file_uploader("Fichier Excel escales",
+                                 type=["xlsx"], key="up_esc_v2",
+                                 label_visibility="collapsed")
+        if f_esc: st.success(f"✓ {f_esc.name}")
+    with col3:
+        st.markdown("**📦 Conteneurs**")
+        f_cnt = st.file_uploader("Fichier Excel conteneurs",
+                                 type=["xlsx"], key="up_cnt_v2",
+                                 label_visibility="collapsed")
+        if f_cnt: st.success(f"✓ {f_cnt.name}")
+
+    if not any([f_march, f_esc, f_cnt]):
+        st.info("Aucun fichier chargé. Veuillez uploader au moins un fichier Excel.")
+    else:
+        st.markdown("---")
+        st.markdown("### 🔄 Lancer les prévisions")
+
+        if st.button("🚀 Lancer la mise à jour", type="primary",
+                     use_container_width=True, key="btn_run_v2"):
+
+            import sys, tempfile, os, subprocess, json, shutil
+            from datetime import datetime
+
+            log = []; success = []; errors = []
+            prog       = st.progress(0, text="Démarrage...")
+            status_box = st.empty()
+
+            try:
+                # GitHub config
+                try:
+                    gh_token = st.secrets["GITHUB_TOKEN"]
+                    gh_repo  = st.secrets["GITHUB_REPO"]
+                    use_gh   = True
+                except Exception:
+                    use_gh = False
+                    st.warning("⚠️ GitHub non configuré — pkl non sauvegardés.")
+
+                step        = [0]
+                total_steps = (bool(f_march)*2 + bool(f_esc)*2 +
+                               bool(f_cnt)*2 + 1 + (3 if use_gh else 0))
+
+                def advance(msg):
+                    step[0] += 1
+                    pct = min(int(step[0] / max(total_steps,1) * 100), 99)
+                    prog.progress(pct, text=msg)
+                    status_box.info(f"⏳ {msg}")
+                    log.append(msg)
+
+                tmpdir = tempfile.mkdtemp()
+
+                # Sauvegarder les fichiers uploadés avec les bons noms
+                if f_march:
+                    p = os.path.join(tmpdir, "data_prevision_Marchandise.xlsx")
+                    with open(p,"wb") as fo: fo.write(f_march.read())
+                    shutil.copy(p, "data_prevision_Marchandise.xlsx")
+
+                if f_esc:
+                    p = os.path.join(tmpdir, "data_Escales.xlsx")
+                    with open(p,"wb") as fo: fo.write(f_esc.read())
+                    shutil.copy(p, "data_Escales.xlsx")
+
+                if f_cnt:
+                    p = os.path.join(tmpdir, "data_Conteneurs.xlsx")
+                    with open(p,"wb") as fo: fo.write(f_cnt.read())
+                    shutil.copy(p, "data_Conteneurs.xlsx")
+
+                # ── Marchandises ─────────────────────────────────
+                if f_march:
+                    advance("Entraînement modèles marchandises V2...")
+                    r = subprocess.run([sys.executable, "train_models_v2.py"],
+                                       capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        success.append("Marchandises — modèles entraînés (SARIMA)")
+                    else:
+                        errors.append(f"Marchandises train: {r.stderr[:200]}")
+
+                    advance("Prévisions marchandises V2...")
+                    r = subprocess.run([sys.executable, "forecast_engine_v2.py"],
+                                       capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        success.append("Marchandises — prévisions générées")
+                    else:
+                        errors.append(f"Marchandises forecast: {r.stderr[:200]}")
+
+                # ── Escales ──────────────────────────────────────
+                if f_esc:
+                    advance("Entraînement modèles escales...")
+                    r = subprocess.run([sys.executable, "train_models_escales.py"],
+                                       capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        success.append("Escales — modèles entraînés")
+                    else:
+                        errors.append(f"Escales train: {r.stderr[:200]}")
+
+                    advance("Prévisions escales...")
+                    r = subprocess.run([sys.executable, "forecast_engine_escales.py"],
+                                       capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        success.append("Escales — prévisions générées")
+                    else:
+                        errors.append(f"Escales forecast: {r.stderr[:200]}")
+
+                # ── Conteneurs ───────────────────────────────────
+                if f_cnt:
+                    advance("Entraînement modèles conteneurs V2...")
+                    r = subprocess.run([sys.executable, "train_models_conteneurs_v2.py"],
+                                       capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        success.append("Conteneurs — modèles entraînés (NT pilote)")
+                    else:
+                        errors.append(f"Conteneurs train: {r.stderr[:200]}")
+
+                    advance("Prévisions conteneurs V2...")
+                    r = subprocess.run([sys.executable, "forecast_engine_conteneurs_v2.py"],
+                                       capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        success.append("Conteneurs — prévisions générées")
+                    else:
+                        errors.append(f"Conteneurs forecast: {r.stderr[:200]}")
+
+                # ── Journal ──────────────────────────────────────
+                advance("Mise à jour du journal...")
+                hist_file = "historique.json"
+                try:
+                    with open(hist_file,"r",encoding="utf-8") as fh:
+                        historique = json.load(fh)
+                except Exception:
+                    historique = []
+
+                entry = {
+                    "date"    : datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "modules" : [m for m in [
+                        "Marchandises" if f_march else None,
+                        "Escales"      if f_esc   else None,
+                        "Conteneurs"   if f_cnt   else None,
+                    ] if m],
+                    "fichiers": [f for f in [
+                        f_march.name if f_march else None,
+                        f_esc.name   if f_esc   else None,
+                        f_cnt.name   if f_cnt   else None,
+                    ] if f],
+                    "statut"  : "OK" if not errors else "ERREURS",
+                    "details" : success + errors,
+                }
+                historique.insert(0, entry)
+                with open(hist_file,"w",encoding="utf-8") as fh:
+                    json.dump(historique, fh, ensure_ascii=False, indent=2)
+
+                # ── GitHub ───────────────────────────────────────
+                if use_gh and not errors:
+                    advance("Sauvegarde sur GitHub...")
+                    try:
+                        import base64, urllib.request
+
+                        pkl_files = [
+                            "models_v2.pkl", "series_v2.pkl", "forecasts_v2.pkl",
+                            "models_escales.pkl", "series_escales.pkl",
+                            "forecasts_escales.pkl",
+                            "models_conteneurs_v2.pkl", "series_conteneurs_v2.pkl",
+                            "forecasts_conteneurs_v2.pkl",
+                            "historique.json",
+                        ]
+                        headers = {
+                            "Authorization": f"token {gh_token}",
+                            "Accept"       : "application/vnd.github.v3+json",
+                            "Content-Type" : "application/json",
+                        }
+                        gh_ok = 0
+                        for fname in pkl_files:
+                            if not os.path.exists(fname): continue
+                            with open(fname,"rb") as fbin:
+                                c64 = base64.b64encode(fbin.read()).decode()
+                            api_url = (f"https://api.github.com/repos/"
+                                       f"{gh_repo}/contents/{fname}")
+                            req_get = urllib.request.Request(api_url, headers=headers)
+                            try:
+                                with urllib.request.urlopen(req_get) as resp:
+                                    sha = json.loads(resp.read())["sha"]
+                            except Exception:
+                                sha = None
+                            payload = json.dumps({
+                                "message": f"[Admin V2] {fname} — {entry['date']}",
+                                "content": c64,
+                                **( {"sha": sha} if sha else {} ),
+                            }).encode()
+                            req_put = urllib.request.Request(
+                                api_url, data=payload, headers=headers, method="PUT")
+                            try:
+                                with urllib.request.urlopen(req_put): gh_ok += 1
+                            except Exception as e_gh:
+                                errors.append(f"GitHub {fname}: {str(e_gh)[:80]}")
+
+                        if gh_ok > 0:
+                            success.append(f"GitHub — {gh_ok} fichiers sauvegardés")
+                    except Exception as e_gh_main:
+                        errors.append(f"GitHub: {str(e_gh_main)[:200]}")
+
+                # ── Résultat final ───────────────────────────────
+                prog.progress(100, text="Terminé !")
+                status_box.empty()
+
+                if not errors:
+                    st.success(f"✅ Mise à jour réussie ! "
+                               f"{len(success)} opération(s) effectuée(s).")
+                    for s in success: st.markdown(f"  • {s}")
+                    st.info("🔄 Rechargez la page pour voir les nouvelles prévisions.")
+                else:
+                    st.warning(f"⚠️ Terminé avec {len(errors)} erreur(s).")
+                    for s in success: st.markdown(f"  ✓ {s}")
+                    for e_msg in errors: st.error(f"  ✗ {e_msg}")
+
+            except Exception as e_global:
+                prog.progress(0, text="Erreur")
+                st.error(f"Erreur inattendue : {e_global}")
+
+    # ── Journal ──────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 📋 Journal des mises à jour")
+    import json as _json
+    try:
+        with open("historique.json","r",encoding="utf-8") as fh:
+            hist = _json.load(fh)
+        if not hist:
+            st.info("Aucune mise à jour enregistrée.")
+        else:
+            rows = [{"Date"    : h.get("date","—"),
+                     "Modules" : ", ".join(h.get("modules",[])),
+                     "Fichiers": ", ".join(h.get("fichiers",[])),
+                     "Statut"  : h.get("statut","—")} for h in hist]
+            st.dataframe(pd.DataFrame(rows),
+                         use_container_width=True, hide_index=True)
+    except FileNotFoundError:
+        st.info("Aucune mise à jour enregistrée.")
+    except Exception as e_hist:
+        st.warning(f"Impossible de lire le journal : {e_hist}")
