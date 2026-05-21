@@ -30,24 +30,27 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-[data-testid="stSidebar"] {background:#0D2B45;}
-[data-testid="stSidebar"] * {color:#E8EFF6;}
-[data-testid="stSidebar"] .stRadio label {
-    background:#1563A0;border-radius:6px;padding:4px 10px;
-    margin:2px 0;display:block;font-size:0.88rem;}
-[data-testid="stSidebar"] .stRadio label:hover {background:#2B8ACB;}
-[data-testid="stSidebar"] hr {border-color:#2B8ACB;}
-.kpi{background:#F4F8FC;border-radius:8px;padding:14px 18px;
-     border-left:4px solid #1563A0;margin-bottom:8px;}
-.kpi-label{font-size:.8rem;color:#64748B;font-weight:600;
-           text-transform:uppercase;letter-spacing:.05em;}
-.kpi-value{font-size:1.7rem;font-weight:700;color:#0D2B45;margin:2px 0;}
-.kpi-sub{font-size:.8rem;color:#64748B;}
-.badge{display:inline-block;padding:3px 10px;border-radius:12px;
-       font-size:.8rem;font-weight:600;margin-bottom:8px;}
-.badge-nt{background:rgba(13,122,85,.12);color:#085041;}
-.badge-tr{background:rgba(200,126,26,.12);color:#7A4A00;}
-.badge-tot{background:rgba(21,99,160,.12);color:#0C447C;}
+section[data-testid="stSidebar"]{background:#1a1a18;}
+section[data-testid="stSidebar"] *{color:#e0dfd6 !important;}
+section[data-testid="stSidebar"] .stRadio label{
+    background:rgba(255,255,255,0.08);border-radius:6px;
+    padding:4px 10px;margin:2px 0;display:block;font-size:0.88rem;}
+section[data-testid="stSidebar"] .stRadio label:hover{
+    background:rgba(255,255,255,0.15);}
+section[data-testid="stSidebar"] hr{border-color:rgba(255,255,255,0.2);}
+.kpi{background:#f8f8f6;border-radius:10px;padding:14px 16px;
+     text-align:center;margin-bottom:4px;}
+.kpi-label{font-size:11px;color:#73726c;margin-bottom:4px;}
+.kpi-value{font-size:22px;font-weight:500;color:#2c2c2a;}
+.kpi-sub{font-size:11px;color:#888780;margin-top:2px;}
+.warn{background:#faeeda;border-left:3px solid #BA7517;padding:8px 12px;
+      border-radius:4px;font-size:12px;color:#633806;margin:6px 0;}
+.badge{display:inline-block;padding:3px 10px;border-radius:6px;
+       font-size:11px;font-weight:500;margin-bottom:6px;}
+.badge-nt{background:rgba(29,158,117,0.12);color:#085041;}
+.badge-tr{background:rgba(200,126,26,0.12);color:#7A4A00;}
+.badge-tot{background:rgba(21,99,160,0.12);color:#0C447C;}
+.badge-td{background:rgba(29,158,117,0.12);color:#085041;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,13 +151,21 @@ if "cle_cnt_v2" not in st.session_state:
 # 5. SIDEBAR
 # ─────────────────────────────────────────────────────────────────
 with st.sidebar:
+    # ── LOGO + TITRE ─────────────────────────────────────────────
     try:
-        st.image("logo_PAA.jpg", use_container_width=True)
+        col_l, col_m, col_r = st.columns([1, 2, 1])
+        with col_m:
+            st.image("logo_PAA.jpg", use_container_width=True)
     except Exception:
         pass
-    st.markdown("### Port Autonome d'Abidjan")
-    st.markdown("**Prévisions de trafic · V2**")
-    st.markdown("*NT + Transbordé séparés*")
+    st.markdown(
+        "<div style='text-align:center;font-weight:700;font-size:15px;"
+        "color:#e0dfd6;margin-top:4px;'>Port Autonome d'Abidjan</div>"
+        "<div style='text-align:center;color:#a0a098;font-size:11px;"
+        "margin-top:2px;'>Prévisions de trafic · V2</div>"
+        "<div style='text-align:center;color:#888780;font-size:10px;"
+        "margin-bottom:4px;font-style:italic;'>NT + Transbordé séparés</div>",
+        unsafe_allow_html=True)
     st.markdown("---")
 
     module = st.radio("", [
@@ -317,7 +328,7 @@ if module == "📦 Marchses":
     # ── KPIs ─────────────────────────────────────────────────────
     if page == "KPIs globaux":
         st.markdown(f"## 📦 Marchandises V2 — KPIs · {ANNEE_FIN}")
-        badge("Non transbordé — Holt simple", "badge-nt")
+        badge("Non transbordé — SARIMA(1,0,0)(0,1,0)12", "badge-nt")
         badge("Transbordé — Moyenne 2024-2025", "badge-tr")
         badge(f"Total = NT + Transb.", "badge-tot")
 
@@ -337,7 +348,7 @@ if module == "📦 Marchses":
         lo26  = ann_fc(ANNEE_MIN_FC,"ic_lo_nt")
         hi26  = ann_fc(ANNEE_MIN_FC,"ic_hi_nt")
         kpi(c4,f"NT prévu {ANNEE_MIN_FC}",f"{nt26:.3f} Mt",
-            f"WMAPE={meta_v2['wmape_nt']:.1f}%  IC95%: [{lo26:.2f} – {hi26:.2f}]")
+            f"SARIMA · WMAPE={meta_v2['wmape_nt']:.1f}%  IC95%: [{lo26:.2f} – {hi26:.2f}]")
         kpi(c5,f"Transbordé prévu {ANNEE_MIN_FC}",f"{tr26:.3f} Mt",
             "Constante (moy. 2024-2025)")
         kpi(c6,f"Total prévu {ANNEE_MIN_FC}",f"{tot26:.3f} Mt",
