@@ -554,6 +554,7 @@ def _section_esc_ct(ws, fc_esc, mdl_esc, annee_fin, annee_fc,
 
     def em(cle):
         total_m = np.array(fc_esc[annee_fc]["mensuel"], dtype=float)
+        if cle == "TOTAL": return total_m
         p = parts_yr.get(_cle_r, parts_yr[yr_last]).get(cle, 0)
         r = np.round(total_m * p / 100).astype(int).astype(float)
         diff = total_m.sum() * p / 100 - r.sum()
@@ -807,6 +808,8 @@ def _section_cnt_ct_v2(ws, fc_cnt, mdl_cnt, annee_fin, annee_fc,
     for cle, label, bg, fg, bold in LIGNES_CNT:
         fc_m = get_mens_cnt(cle)
         _c(ws, row, 1, "", bg=bg)
+        reel_fg = ("FF0000" if cle=="TOTAL" else
+                   "FFFF99" if bg not in (C_BLANC,"FFFFFF") else "CC0000")
         _c(ws, row, 2, label, bg=bg, fg=fg, bold=bold, align="left")
         for m in range(12):
             _c(ws, row, 3+m, int(fc_m[m]), bg=bg, fg=fg, bold=bold,
